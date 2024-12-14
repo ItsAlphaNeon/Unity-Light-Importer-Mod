@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<RootNamespace>ExampleMod</RootNamespace>
-		<AssemblyName>ExampleMod</AssemblyName>
+		<RootNamespace>UnityLightImporterMod</RootNamespace>
+		<AssemblyName>UnityLightImporterMod</AssemblyName>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<TargetFramework>net472</TargetFramework>
 		<FileAlignment>512</FileAlignment>
@@ -34,6 +34,9 @@
 		    <HintPath>$(ResonitePath)Resonite_Data\Managed\FrooxEngine.dll</HintPath>
 		    <Private>False</Private>
 		</Reference>
+		<Reference Include="CodeX">
+      		<HintPath>$(ResonitePath)Resonite_Data/Managed/Elements.Core.dll</HintPath>
+    	</Reference>
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
