@@ -15,6 +15,7 @@ namespace UnityLightImporterMod {
 		public override string Name => "UnityLightImporterMod";
 		public override string Version => VERSION_CONSTANT;
 		public override string Link => "https://github.com/resonite-modding-group/UnityLightImporterMod/";
+		public static Text? statusText;
 
 		public class LightData {
 			public List<LightInfo>? Lights { get; set; }
@@ -46,6 +47,8 @@ namespace UnityLightImporterMod {
 		}
 
 		static void LightImporterUI(Slot slot) {
+			// UI Setup
+			Slot lightHolderSlot = slot.Parent.AddSlot("Imported Lights");
 			UIBuilder ui = RadiantUI_Panel.SetupPanel(slot, (LocaleString)"Unity Light Importer", new float2(600f, 400f));
 			slot.PersistentSelf = false;
 			slot.LocalScale *= 0.0009f;
@@ -55,7 +58,11 @@ namespace UnityLightImporterMod {
 			ui.Style.MinHeight = 32f;
 			TextField jsonInputField = ui.TextField("Paste JSON Here", true, "Undo modify TextField");
 			Button runButton = ui.Button("Run Light Importer");
-			runButton.LocalPressed += (button, eventData) => RunImport(button, eventData, slot, jsonInputField.TargetString);
+			statusText = ui.Text("Status: Idle");
+			runButton.LocalPressed += (button, eventData) => {
+				RunImport(button, eventData, lightHolderSlot, jsonInputField.TargetString);
+				statusText.Content.Value = "Import completed.";
+			};
 		}
 
 		static void RunImport(IButton button, ButtonEventData eventData, Slot s, string json) {
@@ -71,16 +78,16 @@ namespace UnityLightImporterMod {
 				return;
 			}
 
-			if (lightData.Lights == null) // Compiler gets pissy if I don't do this
+			if (lightData.Lights == null)
 			{
 				Error("No lights data found in the JSON.");
 				return;
 			}
 
-			foreach (var lightInfo in lightData.Lights) // Same here. Thanks C#
+			foreach (var lightInfo in lightData.Lights)
 {
 				try {
-					Slot lightSlot = lightRootSlot.Parent.AddSlot($"{lightInfo.LightType} Light" + "<color=#" + lightInfo.Color + "> ⏹</color>");
+					Slot lightSlot = lightRootSlot.AddSlot($"{lightInfo.LightType} Light" + "<color=#" + lightInfo.Color + "> ⏹</color>");
 					if (lightInfo.GlobalPosition != null && lightInfo.Rotation != null) { // We love null checks
 						lightSlot.GlobalPosition = new float3(lightInfo.GlobalPosition.x, lightInfo.GlobalPosition.y, lightInfo.GlobalPosition.z);
 						lightSlot.GlobalRotation = new floatQ(lightInfo.Rotation.x, lightInfo.Rotation.y, lightInfo.Rotation.z, lightInfo.Rotation.w);
@@ -120,6 +127,7 @@ namespace UnityLightImporterMod {
 						"None" => ShadowType.None,
 						_ => throw new ArgumentException($"Unknown shadow type: {lightInfo.ShadowType}")
 					};
+					// Rest of the lighting properties
 					lightComponent.Intensity.Value = lightInfo.Intensity;
 					lightComponent.Range.Value = lightInfo.Range;
 					lightComponent.Enabled = lightInfo.Enabled;
