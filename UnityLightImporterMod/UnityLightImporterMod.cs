@@ -7,8 +7,6 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System;
 
-// Some implementations were inspired by 989onan's ResoniteBakery mod.
-
 namespace UnityLightImporterMod {
 	public class UnityLightImporterMod : ResoniteMod {
 		internal const string VERSION_CONSTANT = "1.0.0";
@@ -31,6 +29,7 @@ namespace UnityLightImporterMod {
 			public float Range { get; set; }
 			public float SpotAngle { get; set; }
 			public bool Enabled { get; set; }
+			public string? ShadowType { get; set; }
 		}
 
 		public class Position {
@@ -79,61 +78,77 @@ namespace UnityLightImporterMod {
 			}
 
 			foreach (var lightInfo in lightData.Lights) // Same here. Thanks C#
-			{
-				Slot lightSlot = lightRootSlot.Parent.AddSlot($"{lightInfo.LightType} Light");
-				if (lightInfo.GlobalPosition != null) {
-					lightSlot.GlobalPosition = new float3(lightInfo.GlobalPosition.x, lightInfo.GlobalPosition.y, lightInfo.GlobalPosition.z);
-				} else {
-					Error("GlobalPosition is null for one of the lights.");
-					continue;
-				}
-
-				Light lightComponent = lightSlot.AttachComponent<Light>();
-				switch (lightInfo.LightType) {
-					case "Directional":
-						lightComponent.LightType.Value = LightType.Directional;
-						break;
-					case "Spot":
-						lightComponent.LightType.Value = LightType.Spot;
-						lightComponent.SpotAngle.Value = lightInfo.SpotAngle;
-						break;
-					case "Point":
-						lightComponent.LightType.Value = LightType.Point;
-						break;
-					case "Area":
-						Error("Area lights are not supported in FrooxEngine.");
-						continue;
-					default:
-						throw new ArgumentException($"Unknown light type: {lightInfo.LightType}");
-				}
-				// Figuring out this color stuff was a nighmare. REEEEE
-				if (lightInfo.Color != null) {
-					string hex = lightInfo.Color;
-					if (hex.Length == 6) {
-						hex = "FF" + hex;
+{
+				try {
+					Slot lightSlot = lightRootSlot.Parent.AddSlot($"{lightInfo.LightType} Light" + "<color=#" + lightInfo.Color + "> ⏹</color>");
+					if (lightInfo.GlobalPosition != null && lightInfo.Rotation != null) { // We love null checks
+						lightSlot.GlobalPosition = new float3(lightInfo.GlobalPosition.x, lightInfo.GlobalPosition.y, lightInfo.GlobalPosition.z);
+						lightSlot.GlobalRotation = new floatQ(lightInfo.Rotation.x, lightInfo.Rotation.y, lightInfo.Rotation.z, lightInfo.Rotation.w);
+					} else {
+						throw new InvalidOperationException("GlobalPosition is null for one of the lights.");
 					}
-
-					try {
-						byte r = byte.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
-						byte g = byte.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
-						byte b = byte.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
-						byte a = byte.Parse(hex.Substring(6, 2), System.Globalization.NumberStyles.HexNumber);
-						lightComponent.Color.Value = new colorX(r / 255f, g / 255f, b / 255f, a / 255f);
-					} catch (FormatException) {
-						Error($"Invalid color format for light with type {lightInfo.LightType}. Defaulting to white.");
+					// Lighting Light Type
+					Light lightComponent = lightSlot.AttachComponent<Light>();
+					switch (lightInfo.LightType) {
+						case "Directional":
+							lightComponent.LightType.Value = LightType.Directional;
+							break;
+						case "Spot":
+							lightComponent.LightType.Value = LightType.Spot;
+							lightComponent.SpotAngle.Value = lightInfo.SpotAngle;
+							break;
+						case "Point":
+							lightComponent.LightType.Value = LightType.Point;
+							break;
+						default:
+							lightComponent.Destroy();
+							Error($"Unknown light type: {lightInfo.LightType}");
+							continue;
+					}
+					// Lighting Color
+					if (lightInfo.Color != null) {
+						string hex = lightInfo.Color;
+						var (r, g, b, a) = HexToLinearRGBA(hex);
+						lightComponent.Color.Value = new colorX((float)r, (float)g, (float)b, (float)a);
+					} else {
 						lightComponent.Color.Value = new colorX(1, 1, 1, 1);
 					}
-				} else {
-					lightComponent.Color.Value = new colorX(1, 1, 1, 1);
+					//Lighting Shadow Type
+					lightComponent.ShadowType.Value = lightInfo.ShadowType switch {
+						"Hard" => ShadowType.Hard,
+						"Soft" => ShadowType.Soft,
+						"None" => ShadowType.None,
+						_ => throw new ArgumentException($"Unknown shadow type: {lightInfo.ShadowType}")
+					};
+					lightComponent.Intensity.Value = lightInfo.Intensity;
+					lightComponent.Range.Value = lightInfo.Range;
+					lightComponent.Enabled = lightInfo.Enabled;
+				} catch (Exception e) {
+					Error($"An error occured when processing light at {lightInfo.GlobalPosition}: ", e.Message);
+					continue;
 				}
-
-				lightComponent.Intensity.Value = lightInfo.Intensity;
-				lightComponent.Range.Value = lightInfo.Range;
-				lightComponent.Enabled = lightInfo.Enabled;
 			}
 		}
 
-		
+
+		public static (double R, double G, double B, double A) HexToLinearRGBA(string hex) {
+			if (hex.Length == 8) {
+				var r = int.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
+				var g = int.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
+				var b = int.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
+				var a = int.Parse(hex.Substring(6, 2), System.Globalization.NumberStyles.HexNumber);
+
+				var linearR = r / 255.0;
+				var linearG = g / 255.0;
+				var linearB = b / 255.0;
+				var linearA = a / 255.0;
+
+				return (linearR, linearG, linearB, linearA);
+			} else {
+				throw new ArgumentException("Invalid length for the hex color, should be 8 characters length.");
+			}
+		}
+
 
 		public override void OnEngineInit() {
 			Engine.Current.RunPostInit(() => {
